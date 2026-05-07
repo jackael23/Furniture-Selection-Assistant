@@ -27,8 +27,8 @@ const savedProjects = ref([])
 const showProjectsModal = ref(false)
 const showSaveModal = ref(false)
 const newProjectName = ref('')
+const projectNameError = ref('')
 const saveStatus = ref(null) // 'saving' | 'success' | null
-const projectConfirmDelete = ref(null) // ID of project awaiting deletion confirmation
 
 onMounted(() => {
   const stored = localStorage.getItem('studio_moderne_projects')
@@ -43,13 +43,20 @@ onMounted(() => {
 
 const openSaveModal = () => {
   newProjectName.value = `Untitled Design - ${new Date().toLocaleDateString()}`
+  projectNameError.value = ''
   showSaveModal.value = true
 }
 
 const confirmSave = () => {
-  if (!newProjectName.value.trim()) return
+  projectNameError.value = ''
+  const trimmedName = newProjectName.value.trim()
 
-  const existingIndex = savedProjects.value.findIndex(p => p.name.toLowerCase() === newProjectName.value.trim().toLowerCase())
+  if (!trimmedName) {
+    projectNameError.value = 'Please enter a project name'
+    return
+  }
+
+  const existingIndex = savedProjects.value.findIndex(p => p.name.toLowerCase() === trimmedName.toLowerCase())
   
   if (existingIndex !== -1) {
     if (!confirm('This project name already exists. Do you want to overwrite it?')) {
@@ -91,17 +98,8 @@ const loadProject = (project) => {
 }
 
 const deleteProject = (id) => {
-  if (projectConfirmDelete.value === id) {
-    savedProjects.value = savedProjects.value.filter(p => p.id !== id)
-    localStorage.setItem('studio_moderne_projects', JSON.stringify(savedProjects.value))
-    projectConfirmDelete.value = null
-  } else {
-    projectConfirmDelete.value = id
-    // Auto-reset confirmation after 3 seconds if not confirmed
-    setTimeout(() => {
-      if (projectConfirmDelete.value === id) projectConfirmDelete.value = null
-    }, 3000)
-  }
+  savedProjects.value = savedProjects.value.filter(p => p.id !== id)
+  localStorage.setItem('studio_moderne_projects', JSON.stringify(savedProjects.value))
 }
 
 const currentRoomConfig = computed(() => {
@@ -110,6 +108,19 @@ const currentRoomConfig = computed(() => {
 
 const currentSelections = computed(() => {
   return selections.value[activeRoom.value]
+})
+
+const totalPrice = computed(() => {
+  let total = 0
+  const cats = currentRoomConfig.value?.allowedCategories || []
+  cats.forEach(cat => {
+    const id = currentSelections.value[cat]
+    if (id) {
+      const opt = OPTIONS[cat].find(o => o.id === id)
+      if (opt && opt.basePrice) total += opt.basePrice
+    }
+  })
+  return total
 })
 
 // Set initial category when room changes
@@ -224,76 +235,88 @@ const generateAIInsight = () => {
     isGenerating.value = false
   }, 1200)
 }
+
+watch(newProjectName, (val) => {
+  if (val.trim()) projectNameError.value = ''
+})
 </script>
 
 <template>
   <div class="h-screen flex flex-col bg-bg-studio text-text-studio font-sans selection:bg-brand/20">
     <!-- Header -->
-    <header class="h-20 flex items-center justify-between px-8 bottom-border bg-white shrink-0">
+    <header class="h-16 md:h-20 flex items-center justify-between px-4 md:px-8 bottom-border bg-white shrink-0">
       <div class="flex items-center gap-4">
-        <span class="text-xl font-light tracking-[0.2em] text-text-studio">
+        <span class="text-lg md:text-xl font-light tracking-[0.1em] md:tracking-[0.2em] text-text-studio">
           STUDIO <span class="font-bold text-brand">MODERNE</span>
         </span>
-        <div class="h-4 w-px bg-neutral-200 mx-2" />
-        <span class="text-[10px] text-neutral-400 uppercase tracking-widest font-bold">Prototype v1.0</span>
       </div>
-      <div class="flex items-center gap-8 text-[10px] uppercase tracking-[0.2em] text-neutral-400 font-bold">
+      <div class="flex items-center gap-4 md:gap-8 text-[9px] md:text-[10px] uppercase tracking-[0.1em] md:tracking-[0.2em] text-neutral-400 font-bold">
         <div 
           class="flex items-center gap-2 hover:text-text-studio cursor-pointer transition-colors"
           @click="showProjectsModal = !showProjectsModal"
         >
-          <FolderOpen class="w-3 h-3" />
-          <span>Projects ({{ savedProjects.length }})</span>
+          <FolderOpen class="w-3 h-3 md:w-3.5 md:h-3.5" />
+          <span class="hidden sm:inline">Projects ({{ savedProjects.length }})</span>
+          <span class="sm:hidden">({{ savedProjects.length }})</span>
         </div>
-        <span class="hover:text-text-studio cursor-pointer transition-colors">Library</span>
         <span class="text-text-studio border-b-2 border-brand pb-1">Configurator</span>
       </div>
     </header>
 
-    <main class="flex-1 flex overflow-hidden">
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
       <!-- Left Sidebar -->
-      <nav class="w-64 sidebar-border flex flex-col p-8 gap-10 shrink-0 overflow-y-auto bg-white">
-        <section>
-          <h3 class="text-[10px] uppercase tracking-[0.3em] text-neutral-400 mb-6 font-black">Room Selection</h3>
-          <div class="flex flex-col gap-2">
-            <button
-              v-for="room in ROOMS"
-              :key="room.id"
-              :class="[
-                'w-full text-left px-4 py-3 rounded text-[11px] uppercase tracking-widest transition-all',
-                activeRoom === room.id 
-                  ? 'bg-text-studio text-white font-bold shadow-lg shadow-black/5' 
-                  : 'text-neutral-400 hover:bg-neutral-50 hover:text-text-studio'
-              ]"
-              @click="activeRoom = room.id; analysis = null"
-            >
-              {{ room.name }}
-            </button>
+      <nav class="w-full md:w-64 sidebar-border flex flex-col p-4 md:p-8 gap-4 md:gap-10 shrink-0 overflow-y-auto bg-white border-b md:border-b-0 md:border-r z-10">
+        <section class="relative">
+          <h3 class="text-[9px] md:text-[10px] uppercase tracking-[0.3em] text-neutral-400 mb-3 md:mb-6 font-black">Room Selection</h3>
+          <div class="relative group">
+            <div class="flex md:flex-col gap-2 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 scrollbar-hide snap-x">
+              <button
+                v-for="room in ROOMS"
+                :key="room.id"
+                :id="'room-' + room.id"
+                :class="[
+                  'whitespace-nowrap px-4 py-2 md:py-3 rounded text-[10px] md:text-[11px] uppercase tracking-widest transition-all snap-start',
+                  activeRoom === room.id 
+                    ? 'bg-text-studio text-white font-bold shadow-lg shadow-black/5' 
+                    : 'text-neutral-400 hover:bg-neutral-50 hover:text-text-studio'
+                ]"
+                @click="activeRoom = room.id; analysis = null"
+              >
+                {{ room.name }}
+              </button>
+            </div>
+            <!-- Mobile scroll fade -->
+            <div class="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none md:hidden" />
           </div>
         </section>
 
-        <section v-if="currentRoomConfig">
-          <h3 class="text-[10px] uppercase tracking-[0.3em] text-neutral-400 mb-6 font-black">Categories</h3>
-          <div class="flex flex-col gap-2">
-            <button
-              v-for="cat in currentRoomConfig.allowedCategories"
-              :key="cat"
-              :class="[
-                'w-full text-left px-4 py-3 rounded text-[11px] uppercase tracking-widest transition-all border-l-2',
-                activeCategory === cat 
-                  ? 'bg-neutral-50 text-brand border-brand font-bold' 
-                  : 'text-neutral-400 border-transparent hover:bg-neutral-50'
-              ]"
-              @click="activeCategory = cat"
-            >
-              {{ cat.replace('-', ' ') }}
-            </button>
+        <section v-if="currentRoomConfig" class="relative">
+          <h3 class="text-[9px] md:text-[10px] uppercase tracking-[0.3em] text-neutral-400 mb-3 md:mb-6 font-black">Categories</h3>
+          <div class="relative">
+            <div class="flex md:flex-col gap-2 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 scrollbar-hide snap-x">
+              <button
+                v-for="cat in currentRoomConfig.allowedCategories"
+                :key="cat"
+                :id="'cat-' + cat"
+                :class="[
+                  'whitespace-nowrap px-4 py-2 md:py-3 rounded text-[10px] md:text-[11px] uppercase tracking-widest transition-all border-b-2 md:border-b-0 md:border-l-2 snap-start',
+                  activeCategory === cat 
+                    ? 'bg-neutral-50 text-brand border-brand font-bold' 
+                    : 'text-neutral-400 border-transparent hover:bg-neutral-50'
+                ]"
+                @click="activeCategory = cat"
+              >
+                {{ cat.replace('-', ' ') }}
+              </button>
+            </div>
+            <!-- Mobile scroll fade -->
+            <div class="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none md:hidden" />
           </div>
         </section>
 
         <button 
           @click="clearSelections"
-          class="mt-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-neutral-400 hover:text-red-500 transition-colors font-bold pt-6 border-t border-neutral-100"
+          class="mt-4 md:mt-auto flex items-center justify-center md:justify-start gap-2 text-[10px] uppercase tracking-widest text-neutral-400 hover:text-red-500 transition-colors font-bold pt-4 md:pt-6 border-t border-neutral-100"
         >
           <Trash2 class="w-3 h-3" />
           Clear Layout
@@ -301,18 +324,18 @@ const generateAIInsight = () => {
       </nav>
 
       <!-- Content Area -->
-      <section class="flex-1 p-16 overflow-y-auto bg-bg-studio">
-        <div class="max-w-5xl">
-          <div class="flex justify-between items-end mb-16">
-            <h1 class="text-5xl font-light tracking-tight text-text-studio capitalize">
-              {{ activeCategory?.replace('-', ' ') }} <span class="text-neutral-300 font-thin italic lowercase">/ finish</span>
+      <section class="flex-1 p-6 md:p-16 overflow-y-auto bg-bg-studio pb-32 md:pb-16">
+        <div class="max-w-5xl mx-auto">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6 mb-8 md:mb-16">
+            <h1 class="text-3xl md:text-5xl font-light tracking-tight text-text-studio capitalize">
+              {{ activeCategory?.replace('-', ' ') }} <span class="text-neutral-300 font-thin italic lowercase block sm:inline">/ finish</span>
             </h1>
-            <span class="text-[10px] uppercase tracking-[0.3em] text-neutral-400 font-black">
+            <span class="text-[9px] md:text-[10px] uppercase tracking-[0.2em] md:tracking-[0.3em] text-neutral-400 font-black">
               {{ activeCategory ? OPTIONS[activeCategory].length : 0 }} CURATED SAMPLES
             </span>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
             <template v-if="activeCategory">
               <button
                 v-for="option in OPTIONS[activeCategory]"
@@ -361,23 +384,23 @@ const generateAIInsight = () => {
       </section>
 
       <!-- Right Sidebar -->
-      <aside v-if="currentRoomConfig" class="w-80 sidebar-border bg-white flex flex-col shrink-0 overflow-hidden shadow-2xl">
-        <div class="p-10 flex-1 overflow-y-auto">
-          <h2 class="text-[10px] uppercase tracking-[0.4em] text-neutral-400 mb-10 font-black">Spec Sheet</h2>
+      <aside v-if="currentRoomConfig" class="w-full md:w-80 sidebar-border bg-white flex flex-col shrink-0 overflow-y-auto md:overflow-hidden shadow-2xl border-t md:border-t-0 md:border-l pb-32 md:pb-0">
+        <div class="p-6 md:p-10 flex-1 md:overflow-y-auto">
+          <h2 class="text-[9px] md:text-[10px] uppercase tracking-[0.4em] text-neutral-400 mb-6 md:mb-10 font-black">Spec Sheet</h2>
           
-          <div class="space-y-8">
+          <div class="space-y-6 md:space-y-8">
             <div class="flex justify-between items-start">
               <div class="text-[10px]">
-                <p class="text-neutral-400 uppercase tracking-widest mb-2 font-bold italic">Context</p>
-                <p class="text-text-studio font-bold text-base tracking-tight capitalize">{{ activeRoom.replace('-', ' ') }}</p>
+                <p class="text-neutral-400 uppercase tracking-widest mb-1 md:mb-2 font-bold italic">Context</p>
+                <p class="text-text-studio font-bold text-sm md:text-base tracking-tight capitalize">{{ activeRoom.replace('-', ' ') }}</p>
               </div>
             </div>
 
             <div class="h-px bg-neutral-100" />
 
-            <div class="space-y-6">
+            <div class="space-y-4 md:space-y-6">
               <div v-for="cat in currentRoomConfig.allowedCategories" :key="cat" class="flex justify-between items-start group">
-                <div class="text-[10px]">
+                <div class="text-[10px] flex-1">
                   <p class="text-neutral-400 uppercase tracking-widest mb-1.5 font-bold">{{ cat.replace('-', ' ') }}</p>
                   <p :class="[
                     'text-[11px] font-bold tracking-wide',
@@ -386,12 +409,31 @@ const generateAIInsight = () => {
                     {{ (OPTIONS[cat].find(o => o.id === currentSelections[cat]))?.name || 'Unspecified' }}
                   </p>
                 </div>
-                <div v-if="currentSelections[cat]" class="w-1.5 h-1.5 rounded-full bg-brand mt-1 shrink-0" />
+                <div class="text-[10px] text-right ml-4">
+                  <p v-if="currentSelections[cat]" class="text-neutral-400 font-bold">
+                    ${{ (OPTIONS[cat].find(o => o.id === currentSelections[cat]))?.basePrice.toLocaleString() }}
+                  </p>
+                  <div v-if="currentSelections[cat]" class="w-1.5 h-1.5 rounded-full bg-brand mt-1 inline-block" />
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-8 pt-8 border-t border-neutral-100">
+              <div class="flex justify-between items-center bg-neutral-50 p-6 rounded-xl border border-neutral-100">
+                <div class="text-[10px]">
+                  <p class="text-neutral-400 uppercase tracking-widest mb-1 font-bold">Estimated Budget</p>
+                  <p class="text-2xl font-black tracking-tight text-text-studio">
+                    ${{ totalPrice.toLocaleString() }}
+                  </p>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm">
+                  <span class="text-[10px] font-black text-brand">$</span>
+                </div>
               </div>
             </div>
 
             <!-- AI Section -->
-            <div class="mt-16 pt-10 border-t border-neutral-100">
+            <div class="mt-8 md:mt-16 pt-6 md:pt-10 border-t border-neutral-100">
               <Presence exit-before-enter>
                 <Motion
                   v-if="analysis"
@@ -399,49 +441,49 @@ const generateAIInsight = () => {
                   :initial="{ opacity: 0, scale: 0.95 }"
                   :animate="{ opacity: 1, scale: 1 }"
                   :exit="{ opacity: 0, scale: 0.95 }"
-                  class="p-6 rounded-2xl bg-brand/5 border border-brand/10 relative overflow-hidden"
+                  class="p-4 md:p-6 rounded-2xl bg-brand/5 border border-brand/10 relative overflow-hidden"
                 >
-                  <div class="flex items-center gap-2 mb-5">
+                  <div class="flex items-center gap-2 mb-4 md:mb-5">
                     <div class="w-2 h-2 rounded-full bg-brand" />
-                    <h4 class="text-[10px] uppercase font-black tracking-[0.3em] text-brand">
+                    <h4 class="text-[9px] md:text-[10px] uppercase font-black tracking-[0.3em] text-brand">
                       AI Narrative
                     </h4>
                   </div>
                   
-                  <div class="space-y-5">
-                    <p class="text-[11px] leading-relaxed text-text-studio font-medium italic opacity-80">
+                  <div class="space-y-4 md:space-y-5">
+                    <p class="text-[10px] md:text-[11px] leading-relaxed text-text-studio font-medium italic opacity-80">
                       "{{ analysis.summary }}"
                     </p>
                     
-                    <div v-if="analysis.warnings.length > 0" class="space-y-3">
-                      <div v-for="(w, i) in analysis.warnings" :key="i" class="text-[10px] leading-relaxed text-red-500 font-bold uppercase tracking-widest border-l-2 border-red-500 pl-3">
+                    <div v-if="analysis.warnings.length > 0" class="space-y-2 md:space-y-3">
+                      <div v-for="(w, i) in analysis.warnings" :key="i" class="text-[9px] md:text-[10px] leading-relaxed text-red-500 font-bold uppercase tracking-widest border-l-2 border-red-500 pl-3">
                         {{ w }}
                       </div>
                     </div>
 
-                    <div v-if="analysis.costBreakdown" class="grid grid-cols-2 gap-6 border-y border-brand/10 py-5">
+                    <div v-if="analysis.costBreakdown" class="grid grid-cols-2 gap-4 md:gap-6 border-y border-brand/10 py-4 md:py-5">
                       <div class="space-y-1">
                         <span class="text-[8px] uppercase tracking-[0.2em] text-neutral-400 font-black">Materials</span>
-                        <p class="text-[10px] font-black text-text-studio uppercase tracking-widest">
+                        <p class="text-[9px] md:text-[10px] font-black text-text-studio uppercase tracking-widest">
                           {{ analysis.costBreakdown.materials.level }}
                         </p>
-                        <p class="text-[9px] leading-tight text-neutral-400 italic">
+                        <p class="text-[8px] md:text-[9px] leading-tight text-neutral-400 italic">
                           {{ analysis.costBreakdown.materials.info }}
                         </p>
                       </div>
                       <div class="space-y-1">
                         <span class="text-[8px] uppercase tracking-[0.2em] text-neutral-400 font-black">Labor</span>
-                        <p class="text-[10px] font-black text-text-studio uppercase tracking-widest">
+                        <p class="text-[9px] md:text-[10px] font-black text-text-studio uppercase tracking-widest">
                           {{ analysis.costBreakdown.labor.level }}
                         </p>
-                        <p class="text-[9px] leading-tight text-neutral-400 italic">
+                        <p class="text-[8px] md:text-[9px] leading-tight text-neutral-400 italic">
                           {{ analysis.costBreakdown.labor.info }}
                         </p>
                       </div>
                     </div>
 
-                    <div class="text-[10px] text-neutral-400 leading-relaxed tracking-widest">
-                      <span class="text-brand font-black block mb-2 uppercase">Refinement:</span>
+                    <div class="text-[9px] md:text-[10px] text-neutral-400 leading-relaxed tracking-widest">
+                      <span class="text-brand font-black block mb-1 md:mb-2 uppercase">Refinement:</span>
                       {{ analysis.suggestions[0] }}
                     </div>
                   </div>
@@ -452,10 +494,10 @@ const generateAIInsight = () => {
                   :initial="{ opacity: 0 }"
                   :animate="{ opacity: 1 }"
                   :exit="{ opacity: 0 }"
-                  class="p-10 border-2 border-dashed border-neutral-100 rounded-2xl text-center"
+                  class="p-6 md:p-10 border-2 border-dashed border-neutral-100 rounded-2xl text-center"
                 >
-                  <Sparkles class="w-5 h-5 text-neutral-200 mx-auto mb-4" />
-                  <p class="text-[10px] uppercase tracking-[0.3em] text-neutral-300 font-black">
+                  <Sparkles class="w-4 h-4 md:w-5 md:h-5 text-neutral-200 mx-auto mb-3 md:mb-4" />
+                  <p class="text-[9px] md:text-[10px] uppercase tracking-[0.3em] text-neutral-300 font-black">
                     Run Analysis
                   </p>
                 </Motion>
@@ -464,26 +506,42 @@ const generateAIInsight = () => {
           </div>
         </div>
 
-        <div class="p-8 bg-neutral-50 flex flex-col gap-4 bottom-0 border-t border-neutral-100">
+        <div class="hidden md:flex p-8 bg-neutral-50 flex-col gap-4 border-t border-neutral-100 uppercase">
           <button
             :disabled="isGenerating"
-            class="w-full bg-text-studio text-white text-[11px] font-black uppercase py-5 tracking-[0.4em] hover:bg-brand transition-all disabled:opacity-30 shadow-xl shadow-black/10 cursor-pointer"
+            class="w-full bg-text-studio text-white text-[11px] font-black py-5 tracking-[0.4em] hover:bg-brand transition-all disabled:opacity-30 shadow-xl shadow-black/10 cursor-pointer"
             @click="generateAIInsight"
           >
             {{ isGenerating ? 'Curating...' : 'Analyze Design' }}
           </button>
           <button
-            class="w-full border border-neutral-200 text-text-studio text-[10px] font-black uppercase py-5 tracking-[0.4em] hover:bg-white transition-all flex items-center justify-center gap-2"
+            class="w-full border border-neutral-200 text-text-studio text-[10px] font-black py-5 tracking-[0.4em] hover:bg-white transition-all flex items-center justify-center gap-2"
             @click="openSaveModal"
           >
             <Save class="w-3 h-3" />
             Save Design
           </button>
-          <button class="w-full border border-neutral-200 text-text-studio text-[10px] font-black uppercase py-5 tracking-[0.4em] hover:bg-white transition-all">
-            Export Proposal
-          </button>
         </div>
       </aside>
+
+      <!-- Sticky Mobile Footer Actions -->
+      <div class="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t border-neutral-100 flex gap-3 md:hidden z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.03)]">
+        <button
+          :disabled="isGenerating"
+          class="flex-1 bg-text-studio text-white text-[10px] font-black uppercase py-4 tracking-[0.2em] rounded-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+          @click="generateAIInsight"
+        >
+          <Sparkles class="w-3 h-3" />
+          {{ isGenerating ? '...' : 'Analyze' }}
+        </button>
+        <button
+          class="flex-1 border border-neutral-200 text-text-studio text-[10px] font-black uppercase py-4 tracking-[0.2em] rounded-lg bg-white active:scale-95 transition-all flex items-center justify-center gap-2"
+          @click="openSaveModal"
+        >
+          <Save class="w-3 h-3" />
+          Save
+        </button>
+      </div>
     </main>
 
     <!-- Projects Modal -->
@@ -552,15 +610,9 @@ const generateAIInsight = () => {
                   </button>
                   <button 
                     @click.stop="deleteProject(project.id)"
-                    :class="[
-                      'px-3 py-2 text-[9px] font-black uppercase tracking-widest transition-all rounded',
-                      projectConfirmDelete === project.id 
-                        ? 'bg-red-500 text-white' 
-                        : 'text-neutral-200 hover:text-red-500'
-                    ]"
+                    class="px-3 py-2 text-[9px] font-black uppercase tracking-widest transition-all rounded text-neutral-200 hover:text-red-500"
                   >
-                    <span v-if="projectConfirmDelete === project.id">Delete?</span>
-                    <Trash2 v-else class="w-4 h-4" />
+                    <Trash2 class="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -597,10 +649,24 @@ const generateAIInsight = () => {
               <input 
                 v-model="newProjectName"
                 type="text" 
-                class="w-full bg-neutral-50 border border-neutral-100 rounded-lg px-4 py-3 text-xs font-bold text-text-studio focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand/40 transition-all"
+                :class="[
+                  'w-full bg-neutral-50 border rounded-lg px-4 py-3 text-xs font-bold text-text-studio focus:outline-none focus:ring-2 focus:ring-brand/20 transition-all',
+                  projectNameError ? 'border-red-500 focus:border-red-500 ring-2 ring-red-500/10' : 'border-neutral-100 focus:border-brand/40 focus:ring-brand/20'
+                ]"
                 placeholder="Ex: Modern Minimalist Kitchen"
                 @keyup.enter="confirmSave"
               >
+              <Presence>
+                <Motion
+                  v-if="projectNameError"
+                  :initial="{ opacity: 0, y: -10 }"
+                  :animate="{ opacity: 1, y: 0 }"
+                  :exit="{ opacity: 0, y: -10 }"
+                  class="text-[9px] font-bold text-red-500 uppercase tracking-widest pl-1"
+                >
+                  {{ projectNameError }}
+                </Motion>
+              </Presence>
             </div>
 
             <div class="flex gap-3 pt-4">
@@ -629,3 +695,21 @@ const generateAIInsight = () => {
     </Presence>
   </div>
 </template>
+
+<style>
+@import "tailwindcss";
+
+/* Base transitions and utility fixes */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Ensure smooth scrolling */
+html, body {
+  @apply overflow-hidden h-full;
+}
+</style>

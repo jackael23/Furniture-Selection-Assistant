@@ -1,6 +1,6 @@
 {
-  "name": "Design Studio v1",
-  "description": "A lightweight interior design prototype for selecting room materials and furniture with AI-assisted design insights.",
+  "name": "Materials & Furniture Selection Assistant",
+  "description": "A refined interior design tool for selecting room materials and furniture with AI design analysis and project management.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
