@@ -411,7 +411,7 @@ watch(newProjectName, (val) => {
                 </div>
                 <div class="text-[10px] text-right ml-4">
                   <p v-if="currentSelections[cat]" class="text-neutral-400 font-bold">
-                    ${{ (OPTIONS[cat].find(o => o.id === currentSelections[cat]))?.basePrice.toLocaleString() }}
+                    ₱{{ (OPTIONS[cat].find(o => o.id === currentSelections[cat]))?.basePrice.toLocaleString() }}
                   </p>
                   <div v-if="currentSelections[cat]" class="w-1.5 h-1.5 rounded-full bg-brand mt-1 inline-block" />
                 </div>
@@ -423,11 +423,11 @@ watch(newProjectName, (val) => {
                 <div class="text-[10px]">
                   <p class="text-neutral-400 uppercase tracking-widest mb-1 font-bold">Estimated Budget</p>
                   <p class="text-2xl font-black tracking-tight text-text-studio">
-                    ${{ totalPrice.toLocaleString() }}
+                    ₱{{ totalPrice.toLocaleString() }}
                   </p>
                 </div>
                 <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm">
-                  <span class="text-[10px] font-black text-brand">$</span>
+                  <span class="text-[10px] font-black text-brand">₱</span>
                 </div>
               </div>
             </div>
